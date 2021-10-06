@@ -1,11 +1,11 @@
-import SQLiteDb, { PatchType } from '../src';
+import SQLiteDb, { SQLiteDbPatchType } from '../src';
 import { getNewDbPath } from './utils/getDbPath';
 import { unlinkSync } from 'fs';
 
 test('new DB', async () => {
   const dbPath = getNewDbPath();
 
-  const patches: PatchType[] = [
+  const patches: SQLiteDbPatchType[] = [
     {
       version: 1,
       statements: [
@@ -63,5 +63,6 @@ test('new DB', async () => {
   const count2 = await db.getMessageCount();
   expect(count2).toBe(2);
 
+  await db.closeDb();
   unlinkSync(dbPath);
 });

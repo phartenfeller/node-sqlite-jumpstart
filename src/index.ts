@@ -27,15 +27,15 @@ select max(version) as max
   from db_version;
 `;
 
-export type PatchType = {
+export type SQLiteDbPatchType = {
   version: number;
   statements: string[];
 };
 
-export type DbConstructor = {
+export type SQLiteDbConstructor = {
   dbPath: string;
   readonly?: boolean;
-  patches?: PatchType[];
+  patches?: SQLiteDbPatchType[];
   backupPath?: string;
   log?: boolean;
 };
@@ -44,7 +44,7 @@ class SQLiteDb {
   private db: Database;
   private dbPath: string;
   private readonly: boolean;
-  private patches: PatchType[] | undefined;
+  private patches: SQLiteDbPatchType[] | undefined;
   private backupPath: string;
   private log: boolean;
 
@@ -54,7 +54,7 @@ class SQLiteDb {
     patches,
     backupPath = os.tmpdir(),
     log = true,
-  }: DbConstructor) {
+  }: SQLiteDbConstructor) {
     this.dbPath = dbPath;
     this.readonly = readonly;
     this.backupPath = backupPath;
@@ -99,7 +99,7 @@ class SQLiteDb {
     }
   }
 
-  runStatement(statement, values = []) {
+  runStatement(statement, values: any[] = []) {
     try {
       return new Promise((resolve, reject) => {
         if (this.readonly) {
