@@ -29,7 +29,7 @@ test('new DB', async () => {
       });
     }
 
-    async addMessage(text: string) {
+    addMessage(text: string) {
       const stmnt = `
         insert into messages
           (id, text)
@@ -39,15 +39,15 @@ test('new DB', async () => {
       `;
 
       this.counter++;
-      await this.insertRow(stmnt, [this.counter, text]);
+      this.insertRow(stmnt, [this.counter, text]);
     }
 
-    async getMessageCount() {
+    getMessageCount() {
       const stmnt = `
         select count(*) as cnt from messages
       `;
 
-      const row = await this.queryRow(stmnt);
+      const row = this.queryRow(stmnt);
       return row.cnt;
     }
   }
@@ -55,14 +55,14 @@ test('new DB', async () => {
   const db = new newDb();
   await db.initDb();
 
-  await db.addMessage('Hello');
-  const count = await db.getMessageCount();
+  db.addMessage('Hello');
+  const count = db.getMessageCount();
   expect(count).toBe(1);
 
-  await db.addMessage('Hello2');
-  const count2 = await db.getMessageCount();
+  db.addMessage('Hello2');
+  const count2 = db.getMessageCount();
   expect(count2).toBe(2);
 
-  await db.closeDb();
+  db.closeDb();
   unlinkSync(dbPath);
 });

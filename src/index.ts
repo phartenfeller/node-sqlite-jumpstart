@@ -1,9 +1,9 @@
 import fs from 'fs';
 import path from 'path';
-import { Database, OPEN_CREATE, OPEN_READONLY, OPEN_READWRITE } from 'sqlite3';
+import BetterSqlite3 from 'better-sqlite3';
 import { createBackup, removeBackup } from './backupDb';
 import os from 'os';
-import { SQLiteDbConstructor, SQLiteDbPatchType } from './types';
+import { SQLiteDbConstructor, SQLiteDbPatchType, RowObj } from './types';
 
 const QUERY_DB_VERSION_TABLE_EXISTS = `
 select count(*) as cnt from sqlite_master where type = 'table' and lower(name) = 'db_version'`;
@@ -28,17 +28,26 @@ select max(version) as max
   from db_version;
 `;
 
-const START_TRANSACTION = `BEGIN TRANSACTION`;
-const ROLLBACK = `ROLLBACK TRANSACTION`;
-const COMMIT = `COMMIT TRANSACTION`;
-
 class SQLiteDb {
-  private db: Database;
+  private db: BetterSqlite3.Database;
   private dbPath: string;
   private readonly: boolean;
   private patches: SQLiteDbPatchType[] | undefined;
   private backupPath: string;
   private log: boolean;
+
+  private initDbConn() {
+    const p = path.resolve(this.dbPath);
+    const exists = fs.existsSync(p);
+
+    if (this.readonly && !exists) {
+      throw new Error(
+        `DB with readonly option does not exist yet! (${this.dbPath})`
+      );
+    }
+
+    this.db = new BetterSqlite3(p, { readonly: this.readonly });
+  }
 
   constructor({
     dbPath,
@@ -60,6 +69,33 @@ class SQLiteDb {
     }
   }
 
+  async initDb() {
+    try {
+      this.initDbConn();
+
+      if (this.readonly) {
+        this.db.pragma('cache_size=-640000');
+        this.db.pragma('journal_mode=OFF');
+      } else {
+        this.db.pragma('synchronous=OFF');
+        this.db.pragma('count_changes=OFF');
+        this.db.pragma('journal_mode=MEMORY');
+        this.db.pragma('temp_store=MEMORY');
+        this.db.pragma('cache_size=-640000');
+        this.db.pragma('foreign_keys=ON');
+      }
+
+      if (this.patches) {
+        await this.checkPatches();
+      }
+
+      this.logMessage('Db is ready!');
+    } catch (err) {
+      this.logError(`could not setup db`, err);
+      throw err;
+    }
+  }
+
   private logMessage(...args) {
     if (this.log) {
       console.log(...args);
@@ -72,134 +108,65 @@ class SQLiteDb {
     }
   }
 
-  setPragma(statement) {
-    this.logMessage('Setting => ', statement.replace(/PRAGMA /i, ''));
-
-    try {
-      return new Promise((resolve, reject) => {
-        this.db.run(statement, [], (err, result) => {
-          if (err) {
-            this.logError(`Error in setPragma callback => ${err}`);
-            reject(err);
-          }
-          resolve(result);
-        });
-      });
-    } catch (err) {
-      this.logError(`Error in setPragma => ${err}`);
-      throw err;
-    }
-  }
-
   runStatement(statement, values: any[] = []) {
     try {
-      return new Promise((resolve, reject) => {
-        if (this.readonly) {
-          reject(`Cannot run statemetn in readonly mode`);
-        }
-
-        this.db.run(statement, values, (err, result) => {
-          if (err) {
-            this.logError(err, 'runStatement => res');
-            reject(err);
-          }
-          resolve(result);
-        });
-      });
+      const st = this.db.prepare(statement);
+      const info = st.run(values);
+      return info;
     } catch (err) {
       this.logError(err, 'runStatement');
       throw err;
     }
   }
 
-  private initDbConn() {
-    return new Promise((resolve, reject) => {
-      const p = path.resolve(this.dbPath);
-
-      const exists = fs.existsSync(p);
-
-      if (this.readonly && !exists) {
-        reject(`DB with readonly option does not exist yet! (${this.dbPath})`);
-      }
-
-      const mode = this.readonly ? OPEN_READONLY : OPEN_READWRITE | OPEN_CREATE;
-
-      const mydb = new Database(p, mode, (err) => {
-        if (err) {
-          this.logError(`Error from call "new Database" => ${err.message}`);
-          this.logError(`Db Parameters: path => "${p}", mode = "${mode}"`);
-          reject(err);
-        } else {
-          this.db = mydb;
-          this.logMessage(
-            `Successful connection to the database '${this.dbPath}'`
-          );
-          resolve(exists);
-        }
-      });
-    });
-  }
-
-  insertRow(stmnt: string, values: any[] = []): Promise<number> {
-    return new Promise((resolve, reject) => {
-      if (this.readonly) {
-        reject(`Cannot insert row in readonly mode`);
-      }
-
-      this.db.run(stmnt, values, function (err) {
-        if (err) {
-          reject(err);
-        } else {
-          resolve(this.lastID);
-        }
-      });
-    });
+  insertRow(stmnt: string, values: any[] = []) {
+    try {
+      return this.runStatement(stmnt, values);
+    } catch (err) {
+      this.logError(err, 'insertRow');
+      throw err;
+    }
   }
 
   transactionalPreparedStatement(statement: string, params: any[] = []) {
-    return new Promise((resolve, reject) => {
-      if (this.readonly) {
-        reject(`Cannot modify data in readonly mode`);
-      }
+    if (this.readonly) {
+      throw new Error(`Cannot modify data in readonly mode`);
+    }
 
+    try {
       const st = this.db.prepare(statement);
 
-      this.db.run(START_TRANSACTION);
-
-      params.forEach((p) => {
-        st.run(p);
-      });
-
-      st.finalize((err) => {
-        if (err) {
-          this.db.run(ROLLBACK);
-          this.logError(err);
-          reject(err);
+      const transactionFc = this.db.transaction((params) => {
+        for (const param of params) {
+          st.run(param);
         }
-        this.db.run(COMMIT);
-        resolve(1);
       });
-    });
+
+      transactionFc(params);
+    } catch (err) {
+      this.logError('Cannot run transactionalPreparedStatement =>', err);
+      throw err;
+    }
   }
 
-  queryRow(query: string, params: any[] = []): Promise<any> {
-    return new Promise((resolve, reject) => {
-      this.db.get(query, params, (err, row) => {
-        if (err) {
-          reject(err);
-        }
-        resolve(row);
-      });
-    });
+  queryRow(query: string, params: any[] = []): RowObj {
+    try {
+      const stmnt = this.db.prepare(query);
+      const row = stmnt.get(params);
+      return row;
+    } catch (err) {
+      this.logError(err, 'queryRow');
+      throw err;
+    }
   }
 
-  private async setDbVersion(version: number) {
+  private setDbVersion(version: number) {
     if (this.readonly) {
       throw new Error(`Cannot set DB patch version in readonly mode`);
     }
 
     try {
-      await this.insertRow(INSERT_DB_VERSION, [version]);
+      this.insertRow(INSERT_DB_VERSION, [version]);
       this.logMessage(`├  Successfully updated DB to version "${version}"`);
     } catch (err) {
       this.logMessage(`Could set new Db version => "${version}"`);
@@ -207,17 +174,17 @@ class SQLiteDb {
     }
   }
 
-  async getPatchVersion(): Promise<number> {
+  getPatchVersion(): number {
     try {
-      const row = await this.queryRow(QUERY_DB_VERSION_TABLE_EXISTS);
-      if (row.cnt > 0) {
-        const row2 = await this.queryRow(QUERY_MAX_DB_VERSION);
-        return parseInt(row2.max);
+      const row = this.queryRow(QUERY_DB_VERSION_TABLE_EXISTS);
+      if ((row.cnt as number) > 0) {
+        const row2 = this.queryRow(QUERY_MAX_DB_VERSION);
+        return row2.max as number;
       } else {
         // crate table and set version to 0
         const initVersion = 0;
-        await this.runStatement(TAB_DB_VERSION);
-        await this.setDbVersion(initVersion);
+        this.db.exec(TAB_DB_VERSION);
+        this.setDbVersion(initVersion);
         return initVersion;
       }
     } catch (err) {
@@ -231,7 +198,7 @@ class SQLiteDb {
     let backupPath: string = '';
 
     try {
-      const version = await this.getPatchVersion();
+      const version = this.getPatchVersion();
 
       const applyablePatches = this.patches
         ?.sort((a, b) => a.version - b.version)
@@ -283,48 +250,8 @@ class SQLiteDb {
     }
   }
 
-  async initDb() {
-    try {
-      await this.initDbConn();
-
-      if (this.readonly) {
-        await this.setPragma('PRAGMA cache_size=-640000');
-        await this.setPragma('PRAGMA journal_mode=OFF');
-      } else {
-        await this.setPragma('PRAGMA synchronous=OFF');
-        await this.setPragma('PRAGMA count_changes=OFF');
-        await this.setPragma('PRAGMA journal_mode=MEMORY');
-        await this.setPragma('PRAGMA temp_store=MEMORY');
-        await this.setPragma('PRAGMA cache_size=-640000');
-        await this.setPragma('PRAGMA foreign_keys=ON');
-      }
-
-      if (this.patches) {
-        await this.checkPatches();
-      }
-
-      this.logMessage('Db is ready!');
-    } catch (err) {
-      this.logError(`could not setup db`, err);
-      throw err;
-    }
-  }
-
   closeDb() {
-    return new Promise((resolve, reject) => {
-      try {
-        this.db.close((err) => {
-          if (err) {
-            this.logError(`could not close db`, err);
-            reject(err);
-          }
-          resolve(1);
-        });
-      } catch (err) {
-        this.logError(`could not close db`, err);
-        reject(err);
-      }
-    });
+    this.db.close();
   }
 }
 

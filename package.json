@@ -11,9 +11,10 @@
     "prepublishOnly": "npm run build"
   },
   "dependencies": {
-    "sqlite3": "^5.0.2"
+    "better-sqlite3": "^7.4.3"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.4.0",
     "@types/jest": "^27.0.2",
     "@types/node": "^16.10.2",
     "@types/sqlite3": "^3.1.7",

@@ -29,7 +29,7 @@ test('patches', async () => {
       });
     }
 
-    async addMessage(text: string) {
+    addMessage(text: string) {
       const stmnt = `
         insert into messages
           (id, text)
@@ -39,15 +39,15 @@ test('patches', async () => {
       `;
 
       this.counter++;
-      await this.insertRow(stmnt, [this.counter, text]);
+      this.insertRow(stmnt, [this.counter, text]);
     }
 
-    async getMessageCount() {
+    getMessageCount() {
       const stmnt = `
         select count(*) as cnt from messages
       `;
 
-      const row = await this.queryRow(stmnt);
+      const row = this.queryRow(stmnt);
       return row.cnt;
     }
   }
@@ -55,9 +55,11 @@ test('patches', async () => {
   const db = new newDb();
   await db.initDb();
 
-  await db.addMessage('Hello');
+  db.addMessage('Hello');
+  const count1 = db.getMessageCount();
+  expect(count1).toBe(1);
 
-  await db.closeDb();
+  db.closeDb();
 
   const patches2 = patches1;
   patches2.push({
@@ -80,7 +82,7 @@ test('patches', async () => {
       });
     }
 
-    async addMessage(text: string) {
+    addMessage(text: string) {
       const stmnt = `
         insert into messages
           (id, text)
@@ -90,24 +92,24 @@ test('patches', async () => {
       `;
 
       this.counter++;
-      await this.insertRow(stmnt, [this.counter, text]);
+      this.insertRow(stmnt, [this.counter, text]);
     }
 
-    async getMessageCount() {
+    getMessageCount() {
       const stmnt = `
         select count(*) as cnt from messages
       `;
 
-      const row = await this.queryRow(stmnt);
+      const row = this.queryRow(stmnt);
       return row.cnt;
     }
 
-    async getTest1234Count() {
+    getTest1234Count() {
       const stmnt = `
         select count(*) as cnt from test1234
       `;
 
-      const row = await this.queryRow(stmnt);
+      const row = this.queryRow(stmnt);
       return row.cnt;
     }
   }
@@ -115,13 +117,13 @@ test('patches', async () => {
   const dbV2 = new newDbV2();
   await dbV2.initDb();
 
-  await dbV2.addMessage('Hello2');
-  const count = await dbV2.getMessageCount();
+  dbV2.addMessage('Hello2');
+  const count = dbV2.getMessageCount();
   expect(count).toBe(2);
 
-  const count2 = await dbV2.getTest1234Count();
+  const count2 = dbV2.getTest1234Count();
   expect(count2).toBe(0);
 
-  await dbV2.closeDb();
+  dbV2.closeDb();
   unlinkSync(dbPath);
 });
