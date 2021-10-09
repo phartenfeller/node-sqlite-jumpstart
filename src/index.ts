@@ -3,6 +3,7 @@ import path from 'path';
 import { Database, OPEN_CREATE, OPEN_READONLY, OPEN_READWRITE } from 'sqlite3';
 import { createBackup, removeBackup } from './backupDb';
 import os from 'os';
+import { SQLiteDbConstructor, SQLiteDbPatchType } from './types';
 
 const QUERY_DB_VERSION_TABLE_EXISTS = `
 select count(*) as cnt from sqlite_master where type = 'table' and lower(name) = 'db_version'`;
@@ -27,18 +28,9 @@ select max(version) as max
   from db_version;
 `;
 
-export type SQLiteDbPatchType = {
-  version: number;
-  statements: string[];
-};
-
-export type SQLiteDbConstructor = {
-  dbPath: string;
-  readonly?: boolean;
-  patches?: SQLiteDbPatchType[];
-  backupPath?: string;
-  log?: boolean;
-};
+const START_TRANSACTION = `BEGIN TRANSACTION`;
+const ROLLBACK = `ROLLBACK TRANSACTION`;
+const COMMIT = `COMMIT TRANSACTION`;
 
 class SQLiteDb {
   private db: Database;
@@ -160,6 +152,32 @@ class SQLiteDb {
         } else {
           resolve(this.lastID);
         }
+      });
+    });
+  }
+
+  transactionalPreparedStatement(statement: string, params: any[] = []) {
+    return new Promise((resolve, reject) => {
+      if (this.readonly) {
+        reject(`Cannot modify data in readonly mode`);
+      }
+
+      const st = this.db.prepare(statement);
+
+      this.db.run(START_TRANSACTION);
+
+      params.forEach((p) => {
+        st.run(p);
+      });
+
+      st.finalize((err) => {
+        if (err) {
+          this.db.run(ROLLBACK);
+          this.logError(err);
+          reject(err);
+        }
+        this.db.run(COMMIT);
+        resolve(1);
       });
     });
   }
