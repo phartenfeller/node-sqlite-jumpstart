@@ -108,7 +108,7 @@ class SQLiteDb {
     }
   }
 
-  runStatement(statement, values: any[] = []) {
+  runStatement(statement, values?: any) {
     try {
       const st = this.db.prepare(statement);
       const info = st.run(values);
