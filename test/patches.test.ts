@@ -1,4 +1,4 @@
-import SQLiteDb, { SQLiteDbPatchType } from '../src';
+import SQLiteDb, { SQLiteDbPatchType } from '../index';
 import { getNewDbPath } from './utils/getDbPath';
 import { unlinkSync } from 'fs';
 

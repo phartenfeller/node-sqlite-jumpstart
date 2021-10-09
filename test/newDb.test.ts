@@ -1,6 +1,6 @@
-import SQLiteDb, { SQLiteDbPatchType } from '../src';
 import { getNewDbPath } from './utils/getDbPath';
 import { unlinkSync } from 'fs';
+import SQLiteDb, { SQLiteDbPatchType } from '../index';
 
 test('new DB', async () => {
   const dbPath = getNewDbPath();
