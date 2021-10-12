@@ -50,6 +50,14 @@ test('new DB', async () => {
       const row = this.queryRow(stmnt);
       return row.cnt;
     }
+
+    getMessages() {
+      const stmnt = `
+        select id, text from messages
+      `;
+
+      return this.queryRows(stmnt);
+    }
   }
 
   const db = new newDb();
@@ -62,6 +70,11 @@ test('new DB', async () => {
   db.addMessage('Hello2');
   const count2 = db.getMessageCount();
   expect(count2).toBe(2);
+
+  const rows = db.getMessages();
+  const messages = rows.map((row) => row.text);
+  const joined = messages.join('|');
+  expect(joined).toBe('Hello|Hello2');
 
   db.closeDb();
   unlinkSync(dbPath);

@@ -4,6 +4,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { createBackup, removeBackup } from './backupDb';
 import os from 'os';
 import { SQLiteDbConstructor, SQLiteDbPatchType, RowObj } from './types';
+import { DBParams, DBTypes } from 'index';
 
 const QUERY_DB_VERSION_TABLE_EXISTS = `
 select count(*) as cnt from sqlite_master where type = 'table' and lower(name) = 'db_version'`;
@@ -108,10 +109,10 @@ class SQLiteDb {
     }
   }
 
-  runStatement(statement, values?: any) {
+  runStatement(statement, values?: DBParams) {
     try {
       const st = this.db.prepare(statement);
-      const info = st.run(values);
+      const info = st.run(values ?? []);
       return info;
     } catch (err) {
       this.logError(err, 'runStatement');
@@ -119,16 +120,16 @@ class SQLiteDb {
     }
   }
 
-  insertRow(stmnt: string, values: any[] = []) {
+  insertRow(stmnt: string, values: DBParams) {
     try {
-      return this.runStatement(stmnt, values);
+      return this.runStatement(stmnt, values ?? []);
     } catch (err) {
       this.logError(err, 'insertRow');
       throw err;
     }
   }
 
-  transactionalPreparedStatement(statement: string, params: any[] = []) {
+  transactionalPreparedStatement(statement: string, params: DBParams[]) {
     if (this.readonly) {
       throw new Error(`Cannot modify data in readonly mode`);
     }
@@ -149,13 +150,24 @@ class SQLiteDb {
     }
   }
 
-  queryRow(query: string, params: any[] = []): RowObj {
+  queryRow(query: string, params?: DBParams): RowObj {
     try {
       const stmnt = this.db.prepare(query);
-      const row = stmnt.get(params);
+      const row = stmnt.get(params ?? []);
       return row;
     } catch (err) {
       this.logError(err, 'queryRow');
+      throw err;
+    }
+  }
+
+  queryRows(query: string, params?: DBParams): RowObj[] {
+    try {
+      const stmnt = this.db.prepare(query);
+      const rows = stmnt.all(params ?? []);
+      return rows;
+    } catch (err) {
+      this.logError(err, 'queryRows');
       throw err;
     }
   }
