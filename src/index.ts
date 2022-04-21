@@ -4,7 +4,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { createBackup, removeBackup } from './backupDb';
 import os from 'os';
 import { SQLiteDbConstructor, SQLiteDbPatchType, RowObj } from './types';
-import { DBParams, DBTypes } from 'index';
+import { DBParams } from 'index';
 
 const QUERY_DB_VERSION_TABLE_EXISTS = `
 select count(*) as cnt from sqlite_master where type = 'table' and lower(name) = 'db_version'`;

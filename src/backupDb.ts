@@ -1,5 +1,4 @@
-import { existsSync } from 'fs';
-import { copyFile, unlink, mkdir } from 'fs/promises';
+import { copyFile, unlink } from 'fs/promises';
 import path from 'path';
 
 export async function createBackup(dbPath: string, backupPath: string) {
