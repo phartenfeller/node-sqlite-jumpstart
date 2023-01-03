@@ -23,7 +23,8 @@ test('text version', async () => {
         dbPath,
         readonly: false,
         patches,
-        log: false,
+        logInfos: false,
+        logErrors: false,
       });
     }
 

@@ -25,7 +25,8 @@ test('patches', async () => {
         dbPath,
         readonly: false,
         patches: patches1,
-        log: false,
+        logInfos: false,
+        logErrors: false,
       });
     }
 
@@ -78,7 +79,8 @@ test('patches', async () => {
         dbPath,
         readonly: false,
         patches: patches2,
-        log: false,
+        logInfos: false,
+        logErrors: false,
       });
     }
 

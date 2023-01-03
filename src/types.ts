@@ -8,7 +8,8 @@ export type SQLiteDbConstructor = {
   readonly?: boolean;
   patches?: SQLiteDbPatchType[];
   backupPath?: string;
-  log?: boolean;
+  logInfos?: boolean;
+  logErrors?: boolean;
   pragmas?: string[];
 };
 

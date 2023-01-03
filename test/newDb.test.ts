@@ -25,7 +25,8 @@ test('new DB', async () => {
         dbPath,
         readonly: false,
         patches,
-        log: false,
+        logInfos: false,
+        logErrors: false,
       });
     }
 

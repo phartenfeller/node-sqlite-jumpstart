@@ -11,7 +11,8 @@ class newDb extends SQLiteDb {
     super({
       dbPath,
       readonly: false,
-      log: false,
+      logInfos: false,
+      logErrors: false,
       pragmas,
     });
   }
@@ -44,6 +45,18 @@ test('custom journal_mode', async () => {
 
   const res = db.getPragmaMode();
   expect(res.journal_mode).toBe('wal');
+
+  db.closeDb();
+  unlinkSync(dbPath);
+});
+
+test('wrong journal_mode', async () => {
+  const dbPath = getNewDbPath();
+  const db = new newDb(dbPath, ['journal_mode=XYZ123']);
+  await db.initDb();
+
+  const res = db.getPragmaMode();
+  expect(res.journal_mode).toBe('delete');
 
   db.closeDb();
   unlinkSync(dbPath);

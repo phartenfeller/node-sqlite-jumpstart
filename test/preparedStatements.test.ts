@@ -29,7 +29,8 @@ describe('preparedStatements', () => {
           dbPath,
           readonly: false,
           patches: patches,
-          log: false,
+          logInfos: false,
+          logErrors: false,
         });
       }
 
@@ -108,7 +109,8 @@ describe('preparedStatements', () => {
           dbPath,
           readonly: false,
           patches: patches,
-          log: false,
+          logInfos: false,
+          logErrors: false,
         });
       }
 

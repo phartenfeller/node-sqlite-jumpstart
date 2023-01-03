@@ -35,7 +35,8 @@ class SQLiteDb {
   private readonly: boolean;
   private patches: SQLiteDbPatchType[] | undefined;
   private backupPath: string;
-  private log: boolean;
+  private logInfos: boolean;
+  private logErrors: boolean;
   private pragmas: string[];
 
   private initDbConn() {
@@ -56,13 +57,15 @@ class SQLiteDb {
     readonly = true,
     patches,
     backupPath = os.tmpdir(),
-    log = true,
+    logInfos = false,
+    logErrors = true,
     pragmas = [],
   }: SQLiteDbConstructor) {
     this.dbPath = dbPath;
     this.readonly = readonly;
     this.backupPath = backupPath;
-    this.log = log;
+    this.logInfos = logInfos;
+    this.logErrors = logErrors;
     this.pragmas = pragmas;
 
     if (readonly === true && patches) {
@@ -81,7 +84,8 @@ class SQLiteDb {
         this.pragmas.forEach((p) => {
           this.logMessage(`Setting pragma: "${p}"`);
           try {
-            this.db.pragma(p);
+            const res = this.db.pragma(p);
+            this.logMessage(`Pragma result`, JSON.stringify(res, null, 2));
           } catch (err) {
             this.logError(`could not set pragma "${p}"`, err);
           }
@@ -112,13 +116,13 @@ class SQLiteDb {
   }
 
   private logMessage(...args) {
-    if (this.log) {
+    if (this.logInfos) {
       console.log(...args);
     }
   }
 
   private logError(...args) {
-    if (this.log) {
+    if (this.logErrors) {
       console.error(...args);
     }
   }
