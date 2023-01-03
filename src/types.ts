@@ -9,6 +9,7 @@ export type SQLiteDbConstructor = {
   patches?: SQLiteDbPatchType[];
   backupPath?: string;
   log?: boolean;
+  pragmas?: string[];
 };
 
 // types from: https://github.com/JoshuaWise/better-sqlite3/blob/master/docs/api.md#binding-parameters

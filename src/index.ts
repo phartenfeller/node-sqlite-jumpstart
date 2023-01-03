@@ -36,6 +36,7 @@ class SQLiteDb {
   private patches: SQLiteDbPatchType[] | undefined;
   private backupPath: string;
   private log: boolean;
+  private pragmas: string[];
 
   private initDbConn() {
     const p = path.resolve(this.dbPath);
@@ -56,11 +57,13 @@ class SQLiteDb {
     patches,
     backupPath = os.tmpdir(),
     log = true,
+    pragmas = [],
   }: SQLiteDbConstructor) {
     this.dbPath = dbPath;
     this.readonly = readonly;
     this.backupPath = backupPath;
     this.log = log;
+    this.pragmas = pragmas;
 
     if (readonly === true && patches) {
       this.patches = undefined;
@@ -74,16 +77,27 @@ class SQLiteDb {
     try {
       this.initDbConn();
 
-      if (this.readonly) {
-        this.db.pragma('cache_size=-640000');
-        this.db.pragma('journal_mode=OFF');
+      if (this.pragmas.length > 0) {
+        this.pragmas.forEach((p) => {
+          this.logMessage(`Setting pragma: "${p}"`);
+          try {
+            this.db.pragma(p);
+          } catch (err) {
+            this.logError(`could not set pragma "${p}"`, err);
+          }
+        });
       } else {
-        this.db.pragma('synchronous=OFF');
-        this.db.pragma('count_changes=OFF');
-        this.db.pragma('journal_mode=MEMORY');
-        this.db.pragma('temp_store=MEMORY');
-        this.db.pragma('cache_size=-640000');
-        this.db.pragma('foreign_keys=ON');
+        if (this.readonly) {
+          this.db.pragma('cache_size=-640000');
+          this.db.pragma('journal_mode=OFF');
+        } else {
+          this.db.pragma('synchronous=OFF');
+          this.db.pragma('count_changes=OFF');
+          this.db.pragma('journal_mode=MEMORY');
+          this.db.pragma('temp_store=MEMORY');
+          this.db.pragma('cache_size=-640000');
+          this.db.pragma('foreign_keys=ON');
+        }
       }
 
       if (this.patches) {
