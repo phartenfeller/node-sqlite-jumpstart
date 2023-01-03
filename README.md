@@ -103,7 +103,8 @@ type SQLiteDbConstructor = {
   readonly?: boolean; // if true, an exisiting DB will be opened readonly
   patches?: SQLiteDbPatchType[]; // patches to apply to the DB
   backupPath?: string; // path where the DB backups are stored
-  log?: boolean; // if true, log many internal actions
+  logInfos?: boolean; // if true, log infos to the console
+  logErrors?: boolean; // if true, log errors to the console
   pragmas?: string[]; // additional pragmas to set
 };
 ```
@@ -147,3 +148,12 @@ const pragmas = [
   'PRAGMA temp_store=MEMORY;',
 ];
 ```
+
+## Base Functions
+
+- `runStatement` executes a single statement
+- `insertRow` inserts a single row
+- `transactionalPreparedStatement` executes a prepared statement in a single transaction for multiple inputs
+- `queryRow` returns a single row
+- `queryRows`  returns a multiple rows
+- `closeDb` closes the DB connection
