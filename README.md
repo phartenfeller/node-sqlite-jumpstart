@@ -15,7 +15,16 @@ Examples of how to use the class are in the [test folder](https://github.com/pha
 
 ## How to use
 
+Install:
+
+```bash
+npm i sqlite-jumpstart
+```
+
+
 ```ts
+import SQLiteDb, { type SQLiteDbPatchType } from 'sqlite-jumpstart';
+
 const patches: SQLiteDbPatchType[] = [
    {
      version: 1,
@@ -35,7 +44,8 @@ class newDb extends SQLiteDb {
       dbPath,
       readonly: false,
       patches: patches,
-      log: false,
+      logInfos: false,
+      logErrors: true,
     });
   }
 
