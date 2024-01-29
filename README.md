@@ -18,7 +18,7 @@ Examples of how to use the class are in the [test folder](https://github.com/pha
 Install:
 
 ```bash
-npm i sqlite-jumpstart
+npm i sqlite-jumpstart better-sqlite3
 ```
 
 
