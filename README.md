@@ -105,7 +105,7 @@ type SQLiteDbConstructor = {
   backupPath?: string; // path where the DB backups are stored
   logInfos?: boolean; // if true, log infos to the console
   logErrors?: boolean; // if true, log errors to the console
-  pragmas?: string[]; // additional pragmas to set
+  pragmas?: string[]; // pragmas to set on the DB (overwrites defaults)
 };
 ```
 
@@ -136,23 +136,37 @@ const patches1: SQLiteDbPatchType[] = [
 
 ### Pragmas
 
-I defaulted some pragmas that I use in my projects. You can define your own pragmas in the constructor.
+I set following default pragmas for writable DBs based on [this blog post](https://cj.rs/blog/sqlite-pragma-cheatsheet-for-performance-and-consistency/).
+
+```txt
+PRAGMA journal_mode = wal; -- different implementation of the atomicity properties
+PRAGMA synchronous = normal; -- synchronise less often to the filesystem
+PRAGMA foreign_keys = on; -- check foreign key reference, slightly worst performance
+```
+
+Additionally I run these optimizations:
+
+```txt
+PRAGMA analysis_limit=400; -- make sure pragma optimize does not take too long
+PRAGMA optimize; -- gather statistics to improve query optimization
+PRAGMA vacuum; -- reorganize the database file to reclaim unused space
+```
+
+For **read only** DBs I set following pragmas:
+
+```txt
+PRAGMA cache_size=-640000;
+PRAGMA journal_mode=OFF;
+```
+
+If you don't like these you can **overwrite** them with the `pragmas` array parameter in the constructor.
 
 [SQlite Pragmas](https://www.sqlite.org/pragma.html)
-
-```ts
-const pragmas = [
-  'PRAGMA foreign_keys=ON;',
-  'PRAGMA journal_mode=WAL;',
-  'PRAGMA synchronous=NORMAL;',
-  'PRAGMA temp_store=MEMORY;',
-];
-```
 
 ## Base Functions
 
 - `runStatement` executes a single statement
-- `insertRow` inserts a single row
+- `insertRow`, `updateRow`, `delteRow` run a single statement with a descriptive function name
 - `transactionalPreparedStatement` executes a prepared statement in a single transaction for multiple inputs
 - `queryRow` returns a single row
 - `queryRows`  returns a multiple rows

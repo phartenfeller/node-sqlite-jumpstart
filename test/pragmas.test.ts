@@ -32,7 +32,7 @@ test('standard journal_mode', async () => {
   await db.initDb();
 
   const res = db.getPragmaMode();
-  expect(res.journal_mode).toBe('memory');
+  expect(res.journal_mode).toBe('wal');
 
   db.closeDb();
   unlinkSync(dbPath);
@@ -40,11 +40,11 @@ test('standard journal_mode', async () => {
 
 test('custom journal_mode', async () => {
   const dbPath = getNewDbPath();
-  const db = new newDb(dbPath, ['journal_mode=WAL']);
+  const db = new newDb(dbPath, ['journal_mode=memory']);
   await db.initDb();
 
   const res = db.getPragmaMode();
-  expect(res.journal_mode).toBe('wal');
+  expect(res.journal_mode).toBe('memory');
 
   db.closeDb();
   unlinkSync(dbPath);

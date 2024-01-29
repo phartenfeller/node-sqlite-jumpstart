@@ -49,7 +49,7 @@ class SQLiteDb {
 
     if (this.readonly && !exists) {
       throw new Error(
-        `DB with readonly option does not exist yet! (${this.dbPath})`
+        `DB with readonly option does not exist yet! (${this.dbPath})`,
       );
     }
 
@@ -84,6 +84,12 @@ class SQLiteDb {
     try {
       this.initDbConn();
 
+      // maintenance
+      // https://cj.rs/blog/sqlite-pragma-cheatsheet-for-performance-and-consistency/
+      this.db.pragma('analysis_limit=400'); // make sure pragma optimize does not take too long
+      this.db.pragma('optimize'); // gather statistics to improve query optimization
+      this.db.pragma('vacuum'); // remove unused space
+
       if (this.pragmas.length > 0) {
         this.pragmas.forEach((p) => {
           this.logMessage(`Setting pragma: "${p}"`);
@@ -99,11 +105,8 @@ class SQLiteDb {
           this.db.pragma('cache_size=-640000');
           this.db.pragma('journal_mode=OFF');
         } else {
-          this.db.pragma('synchronous=OFF');
-          this.db.pragma('count_changes=OFF');
-          this.db.pragma('journal_mode=MEMORY');
-          this.db.pragma('temp_store=MEMORY');
-          this.db.pragma('cache_size=-640000');
+          this.db.pragma('journal_mode=WAL');
+          this.db.pragma('synchronous=normal');
           this.db.pragma('foreign_keys=ON');
         }
       }
@@ -151,6 +154,24 @@ class SQLiteDb {
     }
   }
 
+  updateRow(stmnt: string, values: DBParams) {
+    try {
+      return this.runStatement(stmnt, values ?? []);
+    } catch (err) {
+      this.logError(err, 'updateRow');
+      throw err;
+    }
+  }
+
+  deleteRow(stmnt: string, values: DBParams) {
+    try {
+      return this.runStatement(stmnt, values ?? []);
+    } catch (err) {
+      this.logError(err, 'deleteRow');
+      throw err;
+    }
+  }
+
   transactionalPreparedStatement(statement: string, params: DBParams[]) {
     if (this.readonly) {
       throw new Error(`Cannot modify data in readonly mode`);
@@ -175,7 +196,7 @@ class SQLiteDb {
   queryRow(query: string, params?: DBParams): RowObj {
     try {
       const stmnt = this.db.prepare(query);
-      const row = stmnt.get(params ?? []);
+      const row = stmnt.get(params ?? []) as RowObj;
       return row;
     } catch (err) {
       this.logError(err, 'queryRow');
@@ -186,7 +207,7 @@ class SQLiteDb {
   queryRows(query: string, params?: DBParams): RowObj[] {
     try {
       const stmnt = this.db.prepare(query);
-      const rows = stmnt.all(params ?? []);
+      const rows = stmnt.all(params ?? []) as RowObj[];
       return rows;
     } catch (err) {
       this.logError(err, 'queryRows');
@@ -252,7 +273,7 @@ class SQLiteDb {
 
             for (let statement of migration.statements) {
               this.logMessage(
-                `├  Applying patch => ${statement.replace(/\n/g, '')}`
+                `├  Applying patch => ${statement.replace(/\n/g, '')}`,
               );
               await this.runStatement(statement);
             }
@@ -260,12 +281,12 @@ class SQLiteDb {
             await this.setDbVersion(migration.version);
 
             this.logMessage(
-              `└  Finished patching Database to "${migration.version}"`
+              `└  Finished patching Database to "${migration.version}"`,
             );
           }
         } catch (err) {
           this.logError(
-            `Filed while patching database to version ${migration.version}: ${err}`
+            `Filed while patching database to version ${migration.version}: ${err}`,
           );
           throw err;
         }
@@ -276,7 +297,7 @@ class SQLiteDb {
       this.logError(`Error in checkPatches => ${err}`);
       if (backupPath) {
         this.logMessage(
-          `Check backup of version before patch at => ${backupPath}`
+          `Check backup of version before patch at => ${backupPath}`,
         );
       }
 

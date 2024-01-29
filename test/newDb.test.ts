@@ -59,6 +59,13 @@ test('new DB', async () => {
 
       return this.queryRows(stmnt);
     }
+
+    getJoinedMessageNames() {
+      const rows = db.getMessages();
+      const messages = rows.map((row) => row.text);
+      const joined = messages.join('|');
+      return joined;
+    }
   }
 
   const db = new newDb();
@@ -72,10 +79,24 @@ test('new DB', async () => {
   const count2 = db.getMessageCount();
   expect(count2).toBe(2);
 
-  const rows = db.getMessages();
-  const messages = rows.map((row) => row.text);
-  const joined = messages.join('|');
+  let joined = db.getJoinedMessageNames();
   expect(joined).toBe('Hello|Hello2');
+
+  //update name
+  const sql = `update messages
+                 set text = ?
+                 where text = 'Hello'`;
+
+  db.updateRow(sql, ['Updated']);
+  joined = db.getJoinedMessageNames();
+  expect(joined).toBe('Updated|Hello2');
+
+  //delete name
+  const sql2 = `delete from messages
+                 where text = ?`;
+  db.deleteRow(sql2, ['Updated']);
+  joined = db.getJoinedMessageNames();
+  expect(joined).toBe('Hello2');
 
   db.closeDb();
   unlinkSync(dbPath);
