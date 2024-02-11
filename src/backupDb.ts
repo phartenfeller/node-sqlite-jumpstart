@@ -1,16 +1,16 @@
 import { copyFile, unlink } from 'fs/promises';
 import path from 'path';
+import BetterSqlite3 from 'better-sqlite3';
 
 export async function createBackup(dbPath: string, backupPath: string) {
   try {
-    const bkpFilename = `bkp-${new Date().getTime()}.sqlite`;
-
     const bkpFolderRes = path.resolve(backupPath);
+    const bkpFilename = `bkp-${new Date().getTime()}.sqlite`;
     const bkpPathRes = `${bkpFolderRes}/${bkpFilename}`;
 
-    const dbPathRes = path.resolve(dbPath);
+    const conn = new BetterSqlite3(dbPath, { readonly: true });
+    await conn.backup(bkpPathRes);
 
-    await copyFile(dbPathRes, bkpPathRes);
     return bkpPathRes;
   } catch (err) {
     console.error(`Could not create backup => ${err}`);

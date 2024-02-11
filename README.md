@@ -23,7 +23,7 @@ npm i sqlite-jumpstart better-sqlite3
 
 
 ```ts
-import SQLiteDb, { type SQLiteDbPatchType } from 'sqlite-jumpstart';
+import { SQLiteDb, type SQLiteDbPatchType } from 'sqlite-jumpstart';
 
 const patches: SQLiteDbPatchType[] = [
    {

@@ -33,7 +33,7 @@ select max(version) as max
   from db_version;
 `;
 
-class SQLiteDb {
+export class SQLiteDb {
   private db: BetterSqlite3.Database;
   private dbPath: string;
   private readonly: boolean;
@@ -309,5 +309,3 @@ class SQLiteDb {
     this.db.close();
   }
 }
-
-export default SQLiteDb;
