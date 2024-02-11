@@ -1,4 +1,4 @@
-import fs from 'fs';
+import fs, { stat } from 'fs';
 import path from 'path';
 import BetterSqlite3 from 'better-sqlite3';
 import { createBackup, removeBackup } from './backupDb';
@@ -33,6 +33,8 @@ select max(version) as max
   from db_version;
 `;
 
+type DbStatus = 'uninitiliazed' | 'initializing' | 'ready' | 'closed';
+
 export class SQLiteDb {
   private db: BetterSqlite3.Database;
   private dbPath: string;
@@ -42,6 +44,7 @@ export class SQLiteDb {
   private logInfos: boolean;
   private logErrors: boolean;
   private pragmas: string[];
+  private status: DbStatus = 'uninitiliazed';
 
   private initDbConn() {
     const p = path.resolve(this.dbPath);
@@ -80,15 +83,17 @@ export class SQLiteDb {
     }
   }
 
+  async optimize() {
+    // https://cj.rs/blog/sqlite-pragma-cheatsheet-for-performance-and-consistency/
+    this.db.pragma('analysis_limit=400'); // make sure pragma optimize does not take too long
+    this.db.pragma('optimize'); // gather statistics to improve query optimization
+    this.db.pragma('vacuum'); // remove unused space
+  }
+
   async initDb() {
+    this.status = 'initializing';
     try {
       this.initDbConn();
-
-      // maintenance
-      // https://cj.rs/blog/sqlite-pragma-cheatsheet-for-performance-and-consistency/
-      this.db.pragma('analysis_limit=400'); // make sure pragma optimize does not take too long
-      this.db.pragma('optimize'); // gather statistics to improve query optimization
-      this.db.pragma('vacuum'); // remove unused space
 
       if (this.pragmas.length > 0) {
         this.pragmas.forEach((p) => {
@@ -115,6 +120,7 @@ export class SQLiteDb {
         await this.checkPatches();
       }
 
+      this.status = 'ready';
       this.logMessage('Db is ready!');
     } catch (err) {
       this.logError(`could not setup db`, err);
@@ -134,8 +140,20 @@ export class SQLiteDb {
     }
   }
 
+  private checkStatus() {
+    switch (this.status) {
+      case 'uninitiliazed':
+        throw new Error(`DB not initialized. Call initDb() first`);
+      case 'initializing':
+        throw new Error(`DB is still initializing... please wait until ready`);
+      case 'closed':
+        throw new Error(`DB is closed... cannot run any operations`);
+    }
+  }
+
   runStatement(statement, values?: DBParams) {
     try {
+      this.checkStatus();
       const st = this.db.prepare(statement);
       const info = st.run(values ?? []);
       return info;
@@ -147,6 +165,7 @@ export class SQLiteDb {
 
   insertRow(stmnt: string, values: DBParams) {
     try {
+      this.checkStatus();
       return this.runStatement(stmnt, values ?? []);
     } catch (err) {
       this.logError(err, 'insertRow');
@@ -156,6 +175,7 @@ export class SQLiteDb {
 
   updateRow(stmnt: string, values: DBParams) {
     try {
+      this.checkStatus();
       return this.runStatement(stmnt, values ?? []);
     } catch (err) {
       this.logError(err, 'updateRow');
@@ -165,6 +185,7 @@ export class SQLiteDb {
 
   deleteRow(stmnt: string, values: DBParams) {
     try {
+      this.checkStatus();
       return this.runStatement(stmnt, values ?? []);
     } catch (err) {
       this.logError(err, 'deleteRow');
@@ -178,6 +199,7 @@ export class SQLiteDb {
     }
 
     try {
+      this.checkStatus();
       const st = this.db.prepare(statement);
 
       const transactionFc = this.db.transaction((params) => {
@@ -193,8 +215,21 @@ export class SQLiteDb {
     }
   }
 
+  // does not call checkStatus for internal use while initializing
+  private queryRowInternal(query: string, params?: DBParams): RowObj {
+    try {
+      const stmnt = this.db.prepare(query);
+      const row = stmnt.get(params ?? []) as RowObj;
+      return row;
+    } catch (err) {
+      this.logError(err, 'queryRow');
+      throw err;
+    }
+  }
+
   queryRow(query: string, params?: DBParams): RowObj {
     try {
+      this.checkStatus();
       const stmnt = this.db.prepare(query);
       const row = stmnt.get(params ?? []) as RowObj;
       return row;
@@ -206,6 +241,7 @@ export class SQLiteDb {
 
   queryRows(query: string, params?: DBParams): RowObj[] {
     try {
+      this.checkStatus();
       const stmnt = this.db.prepare(query);
       const rows = stmnt.all(params ?? []) as RowObj[];
       return rows;
@@ -221,7 +257,8 @@ export class SQLiteDb {
     }
 
     try {
-      this.insertRow(INSERT_DB_VERSION, [version]);
+      const st = this.db.prepare(INSERT_DB_VERSION);
+      st.run(version);
       this.logMessage(`├  Successfully updated DB to version "${version}"`);
     } catch (err) {
       this.logMessage(`Could set new Db version => "${version}"`);
@@ -231,9 +268,9 @@ export class SQLiteDb {
 
   getPatchVersion(): number {
     try {
-      const row = this.queryRow(QUERY_DB_VERSION_TABLE_EXISTS);
+      const row = this.queryRowInternal(QUERY_DB_VERSION_TABLE_EXISTS);
       if ((row.cnt as number) > 0) {
-        const row2 = this.queryRow(QUERY_MAX_DB_VERSION);
+        const row2 = this.queryRowInternal(QUERY_MAX_DB_VERSION);
         return row2.max as number;
       } else {
         // crate table and set version to 0
@@ -264,7 +301,9 @@ export class SQLiteDb {
         return;
       }
 
-      backupPath = await createBackup(this.dbPath, this.backupPath);
+      if (version !== 0) {
+        backupPath = await createBackup(this.dbPath, this.backupPath);
+      }
 
       for (let migration of applyablePatches) {
         try {
@@ -275,7 +314,8 @@ export class SQLiteDb {
               this.logMessage(
                 `├  Applying patch => ${statement.replace(/\n/g, '')}`,
               );
-              await this.runStatement(statement);
+              const st = this.db.prepare(statement);
+              st.run();
             }
 
             await this.setDbVersion(migration.version);
@@ -292,7 +332,9 @@ export class SQLiteDb {
         }
       }
 
-      await removeBackup(backupPath);
+      if (backupPath) {
+        await removeBackup(backupPath);
+      }
     } catch (err) {
       this.logError(`Error in checkPatches => ${err}`);
       if (backupPath) {
@@ -306,6 +348,7 @@ export class SQLiteDb {
   }
 
   closeDb() {
+    this.status = 'closed';
     this.db.close();
   }
 }
